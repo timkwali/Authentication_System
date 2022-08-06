@@ -1,10 +1,7 @@
 require("dotenv").config();
-// require("../db/database").connectD();
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const auth = require("../middleware/auth");
-
 const app = express();
 
 app.use(express.json());
@@ -15,7 +12,7 @@ const User = require("../models/user");
 const home = (req, res) => {
   return res.status(200).json({ 
       status: 200,
-      message: "Welcome to Authentication app!" 
+      message: "Welcome 🙌 to Authentication app!" 
   }) 
 }
 
@@ -53,12 +50,11 @@ const register = async (req, res) => {
       const token = jwt.sign(
         { user_id: user._id, email },
         process.env.TOKEN_KEY,
-        {
-          expiresIn: "2h",
-        }
+        { expiresIn: "2h" }
       );
       // save user token
       user.token = token;
+      res.cookie('userToken', token)
   
       // return new user
       res.status(201).json(user);
@@ -85,9 +81,7 @@ const login = async (req, res) => {
         const token = jwt.sign(
           { user_id: user._id, email },
           process.env.TOKEN_KEY,
-          {
-            expiresIn: "2h",
-          }
+          { expiresIn: "10m" }
         );
   
         // save user token
@@ -102,13 +96,29 @@ const login = async (req, res) => {
     }
   };
 
-//   app.post("/welcome", auth, (req, res) => {
-//     res.status(200).send("Welcome 🙌 ");
-//   });
+const getListOfUsers = async (req, res) => {
+  try {
+    const userList = await User.find({type: this.type})
+    if(userList) {
+      return res.status(200).json({
+        status: 200,
+        message: "Operation Successful",
+        data: userList
+      })
+    }
+    return res.status(400).json({
+        status: 500,
+        message: "Error getting list of users",
+    })
+  } catch (err) {
+    console.log(err);
+  }
+}
 
 // module.exports = app;
 module.exports = {
   home,
   register,
-  login
+  login,
+  getListOfUsers
 }
