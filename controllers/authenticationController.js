@@ -36,7 +36,9 @@ const register = async (req, res) => {
       }
   
       //Encrypt user password
-      encryptedPassword = await bcrypt.hash(password, 10);
+      // encryptedPassword = await bcrypt.hash(password, process.env.HASHING_SALT);
+      const salt = await bcrypt.genSalt(10)
+      encryptedPassword = await bcrypt.hash(password, salt);
   
       // Create user in our database
       const user = await User.create({
@@ -48,16 +50,26 @@ const register = async (req, res) => {
   
       // Create token
       const token = jwt.sign(
-        { user_id: user._id, email },
+        { user_id: user._id, email},
         process.env.TOKEN_KEY,
         { expiresIn: "2h" }
       );
       // save user token
       user.token = token;
-      res.cookie('userToken', token)
+      res.cookie(process.env.LOGIN_COOKIE, token);
   
       // return new user
-      res.status(201).json(user);
+      const newUser = { 
+        first_name: user.first_name,
+        last_name: user.last_name,
+        email: user.email,
+        role: user.role,
+        isAdmin: user.isAdmin,
+        isManager: user.isManager,
+        isStaff: user.isStaff,
+        token: user.token,
+      }
+      res.status(201).json(newUser);
     } catch (err) {
       console.log(err);
     }
@@ -79,39 +91,129 @@ const login = async (req, res) => {
       if (user && (await bcrypt.compare(password, user.password))) {
         // Create token
         const token = jwt.sign(
-          { user_id: user._id, email },
+          { user_id: user._id, email},
           process.env.TOKEN_KEY,
-          { expiresIn: "10m" }
+          { expiresIn: "2h" }
         );
   
         // save user token
         user.token = token;
+        res.cookie(process.env.LOGIN_COOKIE, token);
   
         // user
-        res.status(200).json(user);
+        const newUser = { 
+          first_name: user.first_name,
+          last_name: user.last_name,
+          email: user.email,
+          role: user.role,
+          isAdmin: user.isAdmin,
+          isManager: user.isManager,
+          isStaff: user.isStaff,
+          token: user.token,
+        }
+        res.status(200).json(newUser);
       }
       res.status(400).send("Invalid Credentials");
     } catch (err) {
       console.log(err);
     }
-  };
+};
 
-const getListOfUsers = async (req, res) => {
+const getLoggedInUser = async (req, res) => {
   try {
-    const userList = await User.find({type: this.type})
-    if(userList) {
-      return res.status(200).json({
-        status: 200,
-        message: "Operation Successful",
-        data: userList
-      })
-    }
-    return res.status(400).json({
-        status: 500,
-        message: "Error getting list of users",
+    const token = req.headers[process.env.TOKEN_HEADER_KEY]
+    const decoded = jwt.verify(token, process.env.TOKEN_KEY);
+    const userEmail = decoded["email"]
+
+    const user = await User.findOne({email: userEmail}).select("-password")
+    return res.json({
+      status: 200,
+      message: "Operation Successful",
+      body: user
     })
+
   } catch (err) {
     console.log(err);
+    res.status(500).send("Server Error")
+  }
+}
+
+const logout = (req, res) => {
+  res.clearCookie(process.env.LOGIN_COOKIE)
+  res.status(200).json({
+    status: 200,
+    message: "Logout Successful"
+  })
+}
+
+//Only Admins and managers should see list of users
+const getListOfUsers = async (req, res) => {
+  try {
+
+    const token = req.headers[process.env.TOKEN_HEADER_KEY]
+    const decoded = jwt.verify(token, process.env.TOKEN_KEY);
+    const userEmail = decoded["email"]
+    const currentUser = await User.findOne({email: userEmail}).select("-password")
+
+    if(currentUser.isAdmin || currentUser.isManager) {
+      const userList = await User.find({type: this.type})
+      if(userList) {
+        return res.status(200).json({
+          status: 200,
+          message: "Operation Successful",
+          data: userList
+        })
+      }
+
+      return res.status(500).json({
+        status: 500,
+        message: "Error getting list of users",
+      })
+
+    } else {
+      return res.status(401).json({
+        status: 401,
+        message: "You are not authorized to do this operation!",
+      })
+    }
+  } catch (err) {
+    console.log(err);
+    res.status(500).send("Server Error")
+  }
+}
+
+//Only Admin should be allowed to update User
+const updateUser = async (req, res) => {
+  try {
+    const { first_name, last_name, email, isAdmin, isStaff, isManager } = req.body;
+    const token = req.headers[process.env.TOKEN_HEADER_KEY]
+    const decoded = jwt.verify(token, process.env.TOKEN_KEY);
+    const userEmail = decoded["email"]
+    const currentUser = await User.findOne({email: userEmail}).select("-password")
+    console.log(currentUser)
+
+    if(currentUser.isAdmin == true) {
+      const update = await User.replaceOne({email: email}, req.body)
+      if(update) {
+        return res.status(200).json({
+          status: 200,
+          message: "User updated successfully"
+        })
+      }
+      return res.status(500).json({
+          status: 500,
+          message: "Error updating user",
+      })
+
+    } else {
+      return res.status(401).json({
+        status: 401,
+        message: "You are not authorized to do this operation!",
+      })
+    }
+  } catch (err) {
+    console.log(err);
+    res.status(500).send("Server Error")
   }
 }
 
@@ -120,5 +222,8 @@ module.exports = {
   home,
   register,
   login,
-  getListOfUsers
+  logout,
+  getListOfUsers,
+  getLoggedInUser,
+  updateUser
 }

@@ -12,9 +12,9 @@ connectDb()
 const app = express();
 
 //Initialise express middleware
+app.use(cookieParser())
 app.use(express.json({ extended: false }));
 app.use(express.urlencoded({ extended: false }));
-app.use(cookieParser())
 app.use('/', routes)
 
 //PORT 
