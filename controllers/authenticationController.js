@@ -3,6 +3,7 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const app = express();
+const sendMail = require("./mailSender")
 
 app.use(express.json());
 
@@ -217,6 +218,56 @@ const updateUser = async (req, res) => {
   }
 }
 
+const resetPassword = async (req, res) => {
+  const email = req.body.email
+  const user = await User.findOne({email: email})
+  if(!user) {
+    return res.status(404).json({
+      status: 401,
+      message: "This email does not exist",
+    })
+  }
+
+  sendMail(process.env.EMAIL, process.env.EMAIL)
+
+   return res.status(200).json({
+    status: 200,
+    message: "email sent"
+  })
+}
+
+const updatePassword = async (req, res) => {
+  try {
+    const { email, password } = req.body
+
+    if(!email) {
+      return res.status(400).send("User email is required");
+    }
+    if(!password) {
+      return res.status(400).send("New password is required");
+    }
+
+    const salt = await bcrypt.genSalt(10)
+    const encryptedPassword = await bcrypt.hash(password, salt);
+
+    const update = await User.updateOne({email: email}, {password: encryptedPassword})
+      if(update) {
+        return res.status(200).json({
+          status: 200,
+          message: "Password updated successfully"
+        })
+      }
+      return res.status(500).json({
+          status: 500,
+          message: "Error updating password",
+      })
+
+  } catch (err) {
+    console.error(err)
+    res.status(500).send("Server Error")
+  }
+}
+
 // module.exports = app;
 module.exports = {
   home,
@@ -225,5 +276,7 @@ module.exports = {
   logout,
   getListOfUsers,
   getLoggedInUser,
-  updateUser
+  updateUser,
+  resetPassword,
+  updatePassword
 }
