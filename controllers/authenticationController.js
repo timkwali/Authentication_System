@@ -1,16 +1,16 @@
 require("dotenv").config();
-require("./db/database").connect();
+// require("../db/database").connectD();
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const auth = require("./middleware/auth");
+const auth = require("../middleware/auth");
 
 const app = express();
 
 app.use(express.json());
 
 // importing user context
-const User = require("./model/user");
+const User = require("../models/user");
 
 const home = (req, res) => {
   return res.status(200).json({ 
